@@ -1,5 +1,4 @@
 ﻿using Onvif.Core.Client.Common;
-using System;
 
 namespace Onvif.Core.Client
 {

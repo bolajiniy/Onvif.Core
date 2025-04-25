@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Onvif.Core.Client
+﻿namespace Onvif.Core.Client
 {
     public class Account
     {

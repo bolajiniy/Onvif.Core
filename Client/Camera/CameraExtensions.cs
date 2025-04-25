@@ -1,5 +1,4 @@
 ﻿using Onvif.Core.Client.Common;
-using System;
 using System.Threading.Tasks;
 
 namespace Onvif.Core.Client

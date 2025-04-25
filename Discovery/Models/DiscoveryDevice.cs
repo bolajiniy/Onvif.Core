@@ -1,24 +1,41 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
-using System.Net;
 
 namespace Onvif.Core.Discovery.Models
 {
-	public class DiscoveryDevice
-	{
-		public IEnumerable<string> Types { get; internal set; }
-		public IEnumerable<string> XAdresses { get; internal set; }
+	
+    public class DiscoveryDevice : INotifyPropertyChanged
+    {
+        public IEnumerable<string> Types { get; internal set; }
+
+        public IEnumerable<string> XAdresses { get; internal set; }
 		public string Model { get; internal set; }
 		public string Name { get; internal set; }
-		public IPAddress Address { get; internal set; }
+        public string Address { get; internal set; }
 
-		public override bool Equals (object obj)
+        public string Host
 		{
-			var o = obj as DiscoveryDevice;
-			if (o == null) {
-				return false;
+			get => new Uri(XAdresses.FirstOrDefault()).Authority;
+		}
+		public string MessageID { set; get; }
+        public string Raw { get; internal set; }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public override bool Equals (object obj)
+		{
+            if (!(obj is DiscoveryDevice o))
+            {
+                return false;
+            }
+			if (MessageID == o.MessageID || MessageID.Split(':').Last() == o.MessageID.Split(':').Last())
+			{
+				return true;
 			}
-			if (o.Model != Model || o.Name != Name || o.Address != Address
+
+			if (o.Model != Model || o.Name != Name || o.Address.ToString() != Address.ToString()
 				|| o.Types.Count() != Types.Count() || o.XAdresses.Count() != XAdresses.Count()) {
 				return false;
 			}

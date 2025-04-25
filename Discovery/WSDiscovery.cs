@@ -7,6 +7,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,17 +21,34 @@ namespace Onvif.Core.Discovery
         public Task<IEnumerable<DiscoveryDevice>> Discover(int timeout,
             CancellationToken cancellationToken = default(CancellationToken))
         {
-            return Discover(timeout, new UdpClientWrapper(), cancellationToken);
+            return Discover_Old(timeout, new UdpClientWrapper(), cancellationToken);
         }
 
         public async Task<IEnumerable<DiscoveryDevice>> Discover(int Timeout, IUdpClient client,
             CancellationToken cancellationToken = default(CancellationToken))
         {
+            try
+            {
+                await SendProbe(client);
+                await Task.Delay(TimeSpan.FromSeconds(Timeout));
+
+                var response = await client.ReceiveAsync().WithCancellation(cancellationToken);
+                return ProcessResponse(response);
+            }
+            finally
+            {
+                client.Close();
+            }
+            
+        }
+        public async Task<IEnumerable<DiscoveryDevice>> Discover_Old(int Timeout, IUdpClient client,
+            CancellationToken cancellationToken = default(CancellationToken))
+        {
             var devices = new List<DiscoveryDevice>();
-            var isRunning = false;
             var responses = new List<UdpReceiveResult>();
 
             await SendProbe(client);
+            bool isRunning;
             try
             {
                 isRunning = true;
@@ -84,6 +102,21 @@ namespace Onvif.Core.Discovery
             }
         }
 
+        IEnumerable<DiscoveryDevice> ProcessResponse(UdpReceiveResult response)
+        {
+
+            if (response.Buffer != null)
+            {
+                string strResponse = Encoding.UTF8.GetString(response.Buffer);
+                XmlProbeReponse xmlResponse = DeserializeResponse(strResponse);
+                foreach (var device in CreateDevices(xmlResponse, response.RemoteEndPoint))
+                {
+                    yield return device;
+                }
+            }
+
+        }
+
         XmlProbeReponse DeserializeResponse(string xml)
         {
             XmlSerializer serializer = new XmlSerializer(typeof(XmlProbeReponse));
@@ -99,14 +132,21 @@ namespace Onvif.Core.Discovery
 
         IEnumerable<DiscoveryDevice> CreateDevices(XmlProbeReponse response, IPEndPoint remoteEndpoint)
         {
+            var json = JsonSerializer.Serialize(response);
+            Console.WriteLine("\n\n");
+            Console.WriteLine(json);
             foreach (var probeMatch in response.Body.ProbeMatches)
             {
-                var discoveryDevice = new DiscoveryDevice();
-                discoveryDevice.Address = remoteEndpoint.Address;
-                discoveryDevice.XAdresses = ConvertToList(probeMatch.XAddrs);
-                discoveryDevice.Types = ConvertToList(probeMatch.Types);
-                discoveryDevice.Model = ParseModelFromScopes(probeMatch.Scopes);
-                discoveryDevice.Name = ParseNameFromScopes(probeMatch.Scopes);
+                var discoveryDevice = new DiscoveryDevice
+                {
+                    Address = remoteEndpoint.ToString(),
+                    XAdresses = ConvertToList(probeMatch.XAddrs),
+                    Types = ConvertToList(probeMatch.Types),
+                    Model = ParseModelFromScopes(probeMatch.Scopes),
+                    Name = ParseNameFromScopes(probeMatch.Scopes),
+                    MessageID = response?.Header?.MessageID,
+                    Raw = json
+                };
                 yield return discoveryDevice;
             }
         }
